@@ -6,6 +6,12 @@ const jwt = require('jsonwebtoken');
 // SIGNUP
 router.post('/signup', async (req, res) => {
   try {
+    // 1. Check if user already exists to prevent duplicate key errors
+    const existingUser = await User.findOne({ email: req.body.email });
+    if (existingUser) {
+      return res.status(400).json("Email already exists");
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(req.body.password, salt);
 
@@ -16,9 +22,14 @@ router.post('/signup', async (req, res) => {
     });
 
     const user = await newUser.save();
-    res.status(200).json(user);
+    // Exclude password from the response for security
+    const { password, ...others } = user._doc;
+    res.status(200).json(others);
+    
   } catch (err) {
-    res.status(500).json(err);
+    // CRITICAL: This logs the error to your VS Code terminal
+    console.error("Signup Error:", err); 
+    res.status(500).json({ message: "Internal Server Error", details: err.message });
   }
 });
 
@@ -33,7 +44,8 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: user._id, username: user.username },
-      process.env.JWT_SECRET
+      process.env.JWT_SECRET,
+      { expiresIn: "5d" } // Added expiration for better practice
     );
 
     res.status(200).json({
@@ -42,7 +54,8 @@ router.post('/login', async (req, res) => {
       userId: user._id
     });
   } catch (err) {
-    res.status(500).json(err);
+    console.error("Login Error:", err);
+    res.status(500).json({ message: "Internal Server Error", details: err.message });
   }
 });
 
